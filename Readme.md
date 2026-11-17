@@ -1,109 +1,54 @@
-### Device specific configuration to build AOSP Android 17 for Orange Pi 5 series boards with rk3588s
+# Android 17 for Orange Pi CM5 Tablet
 
-***
+Based on **[dvab-sarma's Android platform manifests](https://github.com/dvab-sarma/android_local_manifest)**, retaining the original Git history and shared userspace repositories. The kernel workspace project selection derives from [his kernel manifest](https://github.com/dvab-sarma/android_kernel_manifest). His platform integration, Rockchip kernel work, and upstream credits remain the foundation of this port; the original documentation is preserved in `README.upstream.md`.
 
-### How to build (Ubuntu 24.04 LTS):
+This manifest targets the existing CM5 on the tablet carrier. It replaces the Pro device and prebuilt-kernel projects with a separate CM5 product and a source kernel. It pins the Android 17 CP2A snapshot, shared dvab-sarma repositories, CM5 device/kernel commits, toolchains, and U-Boot source.
 
-1. Establish [Android build environment](https://source.android.com/docs/setup/start/requirements).
+## Checkout
 
-2. Make sure to run the below commands to install some dependencies
+Use two sibling directories on an AOSP Linux build host, with the Android `repo` tool installed:
 
-```
-sudo apt-get install dosfstools e2fsprogs fdisk kpartx mtools rsync
-sudo pip3 install meson mako jinja2 ply pyyaml dataclasses
-```
-
-3. Initialize repo:
-
-```
-repo init -u https://android.googlesource.com/platform/manifest -b android-17.0.0_r1
-curl -o .repo/local_manifests/manifest_rk_opi.xml -L https://raw.githubusercontent.com/dvab-sarma/android_local_manifest/android-17.0/manifest_rk_opi.xml --create-dirs
-```
-
-Or optionally, you can reduce download size by creating a shallow clone and removing unneeded projects:
-
-```
-repo init -u https://android.googlesource.com/platform/manifest -b android-17.0.0_r1 --depth=1
-curl -o .repo/local_manifests/manifest_rk_opi.xml -L https://raw.githubusercontent.com/dvab-sarma/android_local_manifest/android-17.0/manifest_rk_opi.xml --create-dirs
-curl -o .repo/local_manifests/remove_projects.xml -L https://raw.githubusercontent.com/dvab-sarma/android_local_manifest/android-17.0/remove_projects.xml
-```
-
-4. Sync source code:
-
-```
+```sh
+mkdir android17 cm5-kernel
+cd android17
+repo init -u https://github.com/G-Pereira/android_manifest_orangepi_cm5_tablet -b android-17.0
 repo sync -j$(nproc)
+cd ../cm5-kernel
+repo init -u https://github.com/G-Pereira/android_manifest_orangepi_cm5_tablet -b android-17.0 -m kernel.xml
+repo sync -j$(nproc)
+cd ../android17
 ```
 
-5. Setup Android build environment:
+`default.xml` is the complete Android workspace manifest. `kernel.xml` is the separate Linux/U-Boot/toolchain workspace. Do not combine both in one directory: kernel tooling and Android build definitions otherwise overlap. The inherited `manifest_rk_opi.xml` remains available for upstream reference; it is not the CM5 entry point.
 
-```
-. build/envsetup.sh
-```
+## Build
 
-6. Select the device (`opi5_pro` ) and build target (tablet UI, `tv` for Android TV, or `car` for Android Automotive):
+Follow normal AOSP host setup (the upstream documentation records Ubuntu 24.04). Additional tools include `bc`, `libelf-dev`, `libdw-dev`, `gcc-aarch64-linux-gnu`, `swig`, Python setuptools, `dosfstools`, `e2fsprogs`, `fdisk`, `mtools`, and `rsync`. Preserve the upstream Mesa Python dependencies where required.
 
+Obtain these firmware files from your stock Orange Pi BSP `rkbin` directory; they are not included in this source publication:
 
-```
-lunch aosp_opi5_pro-cp2a-userdebug
-```
-```
-lunch aosp_opi5_pro_tv-cp2a-userdebug
-```
-```
-lunch aosp_opi5_pro_car-cp2a-userdebug
+```sh
+export BL31=/absolute/path/to/rk3588_bl31_v1.45.elf
+export ROCKCHIP_TPL=/absolute/path/to/rk3588_ddr_lp4_2112MHz_lp5_2400MHz_v1.16.bin
+./device/opi/cm5/opi-cm5-tablet/build_android.sh
 ```
 
+The wrapper builds the source kernel and CM5 U-Boot, selects `aosp_opi_cm5-cp2a-userdebug`, builds Android, and assembles an 8 GiB SD image under `out/target/product/opi-cm5-tablet/`. `JOBS` overrides the default `nproc` parallelism. A larger SD card may have its userdata partition expanded after flashing. The standard AOSP boot animation is used.
 
-7. Compile:
+The U-Boot checkout remains a separate AOSP project pinned to `adffd291a17b6c017e73fc6075b91044834f4a26`; the CM5 patch/configuration and builder are maintained in the device repository.
 
-```
-make bootimage systemimage vendorimage -j$(nproc)
-```
+## Status
 
-8. Make flashable image for the device
- (`opi5 series boards`): 
+This is a development source publication. The original development installation has booted Android with HDMI, USB-C ADB, Wi-Fi scanning, Bluetooth initialization, and wiringOP input/readall. The factored CM5 DTB compiles. **A clean full build and boot of the newly separated product and portable wrappers is still pending.** No release image is attached or certified by this publication.
 
-```
-./opi5_pro-mkimg.sh
-```
-***
-### UPDATE FOR RK3566 (Orange pi 3b v2.1)
+LCD/touch, cameras, audio, battery/charging integration, bus loopback, and electrical GPIO output/interrupt tests remain unverified. The product is userdebug with permissive SELinux; wiringOP MMIO remains root-only, through an optional debug kernel profile. Set `CM5_WIRINGOP_DEBUG=0` to omit that profile.
 
-- Currently, this Android-17 support is only for Rockchip's rk3588 SoC, Would be releasing for rk3566 in near future. For AOSP 16 on rk3566, Please use the android-16.0 branch of this project. 
+The native wiringOP tool is source-built. The optional original Android 13 launcher APK is not redistributed; the repository contains the new adapter source, with local APK repackaging still required. See the [device documentation](https://github.com/G-Pereira/android_device_orangepi_cm5_tablet/tree/android-17.0/opi-cm5-tablet) for details.
 
-***
+## Source repositories
 
+- [CM5 device configuration](https://github.com/G-Pereira/android_device_orangepi_cm5_tablet), forked from dvab-sarma's Pro device repository; independent CM5 product under `opi-cm5-tablet/`, shared HAL sources retained.
+- [CM5 kernel](https://github.com/G-Pereira/android_kernel_orangepi_cm5_tablet), forked from dvab-sarma's Rockchip kernel; ACK 6.18.39 merge, shared fixes, and separate CM5 board features.
+- [This manifest](https://github.com/G-Pereira/android_manifest_orangepi_cm5_tablet), forked from dvab-sarma's Android local manifest.
 
-Also look into [Linux kernel build instructions](https://github.com/dvab-sarma/android_kernel_manifest/tree/android-16.0).
-
-The rockchip drm was patched in this kernel attached in this github.  So, it is recommended to use the kernel in this github.
-***
-
-### Issues:
-- Camera doesn't work
-- 3.5 mm port doesn't work.
-- Ethernet port isn't working.
-- [Android](https://github.com/dvab-sarma/android_local_manifest/issues)
-- [Linux kernel](https://github.com/dvab-sarma/android_kernel_manifest/issues)
-
-***
-### Prebuilt Images
-- You can download the android 15 / 16 / 17 prebuilt images for various boards from this google drive link. [Here](https://drive.google.com/drive/folders/1d5ifTQ6-efLuzAD8wl57woRwLUpaYbc-)
-
-***
-
-### Wiki:
-
-- [Main Wiki](https://github.com/dvab-sarma/android_local_manifest/wiki)
-- [Mesa3D](https://github.com/dvab-sarma/android_local_manifest/wiki/Mesa3D)
-
-
-
-### TODO:
-- Camera drivers need to be developed for rockchip based devices.
-
-***
-**Credits:**
-- The android userspace code is based on KonstaKang's raspberry-vanilla aosp project. A huge thanks to KonstaKang and raspberry-vanilla team.
-- A huge thanks to Masayuki Araki ([Misaka](https://github.com/misakazip)) for his contribution in developing and testing  this build for Orange Pi 5.
-
+Feature branches preserve reviewable changes for contribution upstream. This project is an independent community port; original authors retain their copyright and license notices.
