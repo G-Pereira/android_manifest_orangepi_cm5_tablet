@@ -52,3 +52,5 @@ The native wiringOP tool is source-built. The optional original Android 13 launc
 - [This manifest](https://github.com/G-Pereira/android_manifest_orangepi_cm5_tablet), forked from dvab-sarma's Android local manifest.
 
 Feature branches preserve reviewable changes for contribution upstream. This project is an independent community port; original authors retain their copyright and license notices.
+
+See [the contribution index](CONTRIBUTIONS.md) for all feature PRs and their dependencies.
